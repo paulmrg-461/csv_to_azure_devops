@@ -13,7 +13,7 @@ csv_file_path = './tasks.csv'
 tasks_df = pd.read_csv(csv_file_path)
 
 # Función para crear una tarea en Azure DevOps y asignarla a un User Story
-def create_task(title, description, priority, user_story_id, sprint):
+def create_task(title, description, priority, user_story_id, sprint, assigned_to, original_estimate):
     headers = {
         'Content-Type': 'application/json-patch+json',
     }
@@ -38,6 +38,16 @@ def create_task(title, description, priority, user_story_id, sprint):
             'op': 'add',
             'path': '/fields/System.IterationPath',
             'value': sprint,
+        },
+        {
+            'op': 'add',
+            'path': '/fields/System.AssignedTo',
+            'value': assigned_to,
+        },
+        {
+            'op': 'add',
+            'path': '/fields/Microsoft.VSTS.Scheduling.OriginalEstimate',
+            'value': original_estimate,
         }
     ]
 
@@ -84,4 +94,12 @@ def create_task(title, description, priority, user_story_id, sprint):
 
 # Crear tareas a partir del DataFrame y asignarlas a User Stories
 for index, row in tasks_df.iterrows():
-    create_task(row['Title'], row['Description'], row['Priority'], row['UserStoryID'], row['Sprint'])
+    create_task(
+        row['Title'], 
+        row['Description'], 
+        row['Priority'], 
+        row['UserStoryID'], 
+        row['Sprint'], 
+        row['AssignedTo'], 
+        row['OriginalEstimate']
+    )

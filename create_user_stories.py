@@ -15,7 +15,7 @@ us_csv_file = './user_stories.csv'
 user_stories_df = pd.read_csv(us_csv_file)
 
 # Función para crear una User Story en Azure DevOps
-def create_user_story(title, description, priority, sprint):
+def create_user_story(title, description, priority, sprint, assigned_to, original_estimate):
     headers = {
         'Content-Type': 'application/json-patch+json',
     }
@@ -24,7 +24,7 @@ def create_user_story(title, description, priority, sprint):
         {
             'op': 'add',
             'path': '/fields/System.Title',
-            'value': title,
+            'value': f'[KeyResult]: {title}',
         },
         {
             'op': 'add',
@@ -40,7 +40,7 @@ def create_user_story(title, description, priority, sprint):
             'op': 'add',
             'path': '/fields/System.IterationPath',
             'value': sprint,
-        },
+        }
     ]
 
     response = requests.post(
@@ -51,11 +51,17 @@ def create_user_story(title, description, priority, sprint):
     )
 
     if response.status_code == 200:
-        print(f'User Story "{title}" creada con éxito.')
+        user_story_id = response.json()['id']
+        print(f'User Story "{title}" creada con éxito con ID {user_story_id}.')
     else:
         print(f'Error al crear la User Story "{title}". Status Code: {response.status_code}')
         print(response.json())
 
 # Crear User Stories a partir del DataFrame
 for index, row in user_stories_df.iterrows():
-    create_user_story(row['Title'], row['Description'], row['Priority'], row['Sprint'])
+    create_user_story(
+        row['Title'], 
+        row['Description'], 
+        row['Priority'], 
+        row['Sprint']
+    )
