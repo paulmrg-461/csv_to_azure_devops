@@ -5,7 +5,7 @@ from requests.auth import HTTPBasicAuth
 # Configuración
 organization = 'BlacknBlue'
 project = 'Black and Blue'
-pat = 'YOUR_PATH'
+pat = 'PATH'
 azure_devops_url = f'https://dev.azure.com/{organization}/{project}/_apis/wit/workitems/$Task?api-version=6.0'
 
 # Leer el archivo CSV

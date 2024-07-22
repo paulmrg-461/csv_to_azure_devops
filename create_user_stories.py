@@ -5,17 +5,15 @@ from requests.auth import HTTPBasicAuth
 # Configuración
 organization = 'BlacknBlue'
 project = 'Black and Blue'
-pat = 'YOUR_PATH'
-azure_devops_url = f'https://dev.azure.com/{organization}/{project}/_apis/wit/workitems/$Task?api-version=6.0'
-
-# ***************************CREATE USER STORIES SCRIPT**************************************
+pat = 'PATH'
+azure_devops_url = f'https://dev.azure.com/{organization}/{project}/_apis/wit/workitems/$User%20Story?api-version=6.0'
 
 # Leer el archivo CSV
 us_csv_file = './user_stories.csv'
 user_stories_df = pd.read_csv(us_csv_file)
 
 # Función para crear una User Story en Azure DevOps
-def create_user_story(title, description, priority, sprint, assigned_to, original_estimate):
+def create_user_story(title, description, priority, sprint):
     headers = {
         'Content-Type': 'application/json-patch+json',
     }
@@ -55,7 +53,10 @@ def create_user_story(title, description, priority, sprint, assigned_to, origina
         print(f'User Story "{title}" creada con éxito con ID {user_story_id}.')
     else:
         print(f'Error al crear la User Story "{title}". Status Code: {response.status_code}')
-        print(response.json())
+        try:
+            print(response.json())
+        except ValueError:
+            print(response.text)
 
 # Crear User Stories a partir del DataFrame
 for index, row in user_stories_df.iterrows():

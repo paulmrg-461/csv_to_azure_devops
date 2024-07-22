@@ -1,6 +1,5 @@
 Title,Description,Priority,Sprint
-Código y despliegue del microservicio  de playback recordings,Código y despliegue del microservicio para realizar las grabaciones de los playback en el disco de almacenamiento del servidor NVR,1,Black and Blue\MVP- Sprint 13
-Código y demo para exponer los playback recordings (según filtros),Código y demo para exponer los playback recordings y permitir filtrar los playbacks de acuerdo a los filtros definidos por el usuario,1,Black and Blue\MVP- Sprint 13
-Documentación- código y demo de los playback recordings,Documentación- código fuente y Swagger de los playback recordings,1,Black and Blue\MVP- Sprint 13
-Código de estructura inicial del proyecto en Flutter,Código de estructura inicial y configuraciones necesarias para el desarrollo del proyecto en Flutter,1,Black and Blue\MVP- Sprint 13
-Código y demo para visualizar los playback recordings (según filtros),Código y demo para solicitar al backend los playback recordings de acuerdo a los filtros y poder visualizarlos en la App Flutter,1,Black and Blue\MVP- Sprint 13
+Codigo y demo para visualizar los playback recordings (segun filtros),Codigo y demo para visualizar los playback recordings (segun filtros),1,Black and Blue\Sprint 14
+Codigo y demo para exponer la authenticación de usuarios de Sigsystem,Codigo y demo para exponer la authenticación de usuarios de Sigsystem,1,Black and Blue\Sprint 14
+Codigo y demo para exponer los playback recordings (segun filtros),Codigo y demo para exponer los playback recordings (segun filtros),1,Black and Blue\Sprint 14
+Codigo y demo para exponer la gestion de usuarios,Codigo y demo para exponer la gestion de usuarios,1,Black and Blue\Sprint 14
