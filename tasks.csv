@@ -1,17 +1,17 @@
-Title,Description,Priority,UserStoryID,Sprint,AssignedTo,OriginalEstimate
-Desarrollar la interfaz desarrolar la interfaz para mostrar los reproductores con las cámaras seleccionadas,Desarrollar la interfaz desarrolar la interfaz para mostrar los reproductores con las cámaras seleccionadas,1,225,Black and Blue\Sprint 14,abdiel.arias@blacknblue.app,6
-"Implementar componentes de filtro para el tipo de evento, nombre del establecimiento, número de cámara y descripción del evento","Implementar componentes de filtro para el tipo de evento, nombre del establecimiento, número de cámara y descripción del evento",1,225,Black and Blue\Sprint 14,abdiel.arias@blacknblue.app,6
-Crear input para busqueda manual,Crear input para busqueda manual,1,225,Black and Blue\Sprint 14,abdiel.arias@blacknblue.app,4
-Generar boton que permita compartir el enlace de reproduccion del video de acuerdo con el  filtro aplicado (Aplicar DeepLinking),Generar boton que permita compartir el enlace de reproduccion del video de acuerdo con el  filtro aplicado (Aplicar DeepLinking),1,225,Black and Blue\Sprint 14,abdiel.arias@blacknblue.app,8
-"Implementar controles de reproduccion avanzados ( pausa, play, adelantar + 1 minuto, retroceder -1 minuto, cambiar velocidad de reproduccion, reproducir en reversa)","Implementar controles de reproduccion avanzados ( pausa, play, adelantar + 1 minuto, retroceder -1 minuto, cambiar velocidad de reproduccion, reproducir en reversa)",1,225,Black and Blue\Sprint 14,abdiel.arias@blacknblue.app,8
-Implementar la lógica de conexión y autenticación contra el servidor LDAP,Implementar la lógica de conexión y autenticación contra el servidor LDAP,1,226,Black and Blue\Sprint 14,samir.millan@blacknblue.app,6
-"Crear endpoints de autenticación (login, logout)","Crear endpoints de autenticación (login, logout)",1,226,Black and Blue\Sprint 14,samir.millan@blacknblue.app,6
-Implementar la lógica para gestionar las sesiones de usuario,Implementar la lógica para gestionar las sesiones de usuario,1,226,Black and Blue\Sprint 14,samir.millan@blacknblue.app,6
-Manejo de errores y excepciones de autenticación,Manejo de errores y excepciones de autenticación,1,226,Black and Blue\Sprint 14,samir.millan@blacknblue.app,4
-Implementar pruebas unitarias para la funcionalidad de autenticación,Implementar pruebas unitarias para la funcionalidad de autenticación,1,226,Black and Blue\Sprint 14,samir.millan@blacknblue.app,6
-Disparar trigger para automaticamente volver a correr el servicio de grabacion.,Disparar trigger para automaticamente volver a correr el servicio de grabacion.,1,227,Black and Blue\Sprint 14,victor.rodriguez@blacknblue.app,6
-"Definir el modelo de datos para los usuarios (incluyendo nombre, apellido, email, teléfono, rol y permisos)","Definir el modelo de datos para los usuarios (incluyendo nombre, apellido, email, teléfono, rol y permisos)",1,228,Black and Blue\Sprint 14,victor.rodriguez@blacknblue.app,4
-Implementar la lógica para crear un nuevo usuario,Implementar la lógica para crear un nuevo usuario,1,228,Black and Blue\Sprint 14,victor.rodriguez@blacknblue.app,6
-Implementar la lógica para actualizar la información de un usuario,Implementar la lógica para actualizar la información de un usuario,1,228,Black and Blue\Sprint 14,victor.rodriguez@blacknblue.app,6
-Implementar la lógica para eliminar un usuario,Implementar la lógica para eliminar un usuario,1,228,Black and Blue\Sprint 14,victor.rodriguez@blacknblue.app,4
-Implementar la lógica para obtener la información de un usuario específico,Implementar la lógica para obtener la información de un usuario específico,1,228,Black and Blue\Sprint 14,victor.rodriguez@blacknblue.app,4
+Title,Module,Description,Priority,UserStoryID,Sprint,AssignedTo,OriginalEstimate
+"Definir las entidades necesarias (Site, Camera)",SitesConfigurationView,Capa de Dominio,1,434,Black and Blue\Sprint 18,juan.meneses@blacknblue.app,"2,6"
+"Definir los casos de uso para la gestión de sitios y cámaras (CreateSite, UpdateSite, DeleteSite, GetSites, etc.)",SitesConfigurationView,Capa de Dominio,1,434,Black and Blue\Sprint 18,juan.meneses@blacknblue.app,"5,2"
+Crear interfaces de repositorio para la gestión de sitios y cámaras,SitesConfigurationView,Capa de Dominio,1,434,Black and Blue\Sprint 18,juan.meneses@blacknblue.app,"2,6"
+Implementar los casos de uso para la gestión de sitios y cámaras,SitesConfigurationView,Capa de Dominio,1,434,Black and Blue\Sprint 18,juan.meneses@blacknblue.app,"5,2"
+Implementar los modelos de datos (DTOs) para la comunicación con el backend,SitesConfigurationView,Capa de datos,1,434,Black and Blue\Sprint 18,juan.meneses@blacknblue.app,"5,2"
+Configurar la comunicación con el backend usando HTTP (Dio o Http package),SitesConfigurationView,Capa de datos,1,434,Black and Blue\Sprint 18,juan.meneses@blacknblue.app,"5,2"
+Implementar los repositorios para la gestión de sitios y cámaras utilizando las interfaces definidas en la capa de dominio,SitesConfigurationView,Capa de datos,1,434,Black and Blue\Sprint 18,juan.meneses@blacknblue.app,"7,8"
+"Definir el modelo de datos para los servidores (título, dirección IP, puerto, método de inicio de sesión, etc.)",Servers configuration View,Servers configuration,1,435,Black and Blue\Sprint 18,samir.millan@blacknblue.app,"5,2"
+Implementar la lógica para actualizar la información de un Schedule,Schedule,Users Schedule - Dominio,1,436,Black and Blue\Sprint 18,victor.rodriguez@blacknblue.app,"15,6"
+Implementar la lógica para eliminar un Schedule,Schedule,Users Schedule - Dominio,1,436,Black and Blue\Sprint 18,victor.rodriguez@blacknblue.app,"15,6"
+Crear interfaces de repositorio para la gestión de User Reports,Reports,User Reports - Datos,1,437,Black and Blue\Sprint 18,kevin.mera@blacknblue.app,"2,6"
+Implementar los casos de uso para la gestión de User Reports,Reports,User Reports - Dominio,1,437,Black and Blue\Sprint 18,kevin.mera@blacknblue.app,"5,2"
+Implementar los modelos de datos (DTOs) para la comunicación con el backend,Reports,User Reports - Datos,1,437,Black and Blue\Sprint 18,kevin.mera@blacknblue.app,"5,2"
+Configurar la comunicación con el backend usando HTTP (Dio o Http package),Reports,User Reports - Datos,1,437,Black and Blue\Sprint 18,kevin.mera@blacknblue.app,"5,2"
+Implementar los repositorios para la gestión de User Reports utilizando las interfaces definidas,Reports,User Reports - Datos,1,437,Black and Blue\Sprint 18,kevin.mera@blacknblue.app,"7,8"
+Gestionar la respuesta del backend (listado de User Reports),Reports,User Reports - Datos,1,437,Black and Blue\Sprint 18,kevin.mera@blacknblue.app,"5,2"

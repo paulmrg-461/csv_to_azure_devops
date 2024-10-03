@@ -1,5 +1,5 @@
 Title,Description,Priority,Sprint
-Codigo y demo para visualizar los playback recordings (segun filtros),Codigo y demo para visualizar los playback recordings (segun filtros),1,Black and Blue\Sprint 14
-Codigo y demo para exponer la authenticación de usuarios de Sigsystem,Codigo y demo para exponer la authenticación de usuarios de Sigsystem,1,Black and Blue\Sprint 14
-Codigo y demo para exponer los playback recordings (segun filtros),Codigo y demo para exponer los playback recordings (segun filtros),1,Black and Blue\Sprint 14
-Codigo y demo para exponer la gestion de usuarios,Codigo y demo para exponer la gestion de usuarios,1,Black and Blue\Sprint 14
+Código y demo para configurar sitios y canales en el frontend,Modulo: SitesConfigurationView,1,Black and Blue\Sprint 18
+Codigo y demo para exponer Configuracion de servidores,Modulo: Servers configuration View,1,Black and Blue\Sprint 18
+Código y demo para exponer Users Schedule Configuration,Modulo: Shedule,1,Black and Blue\Sprint 18
+Código y demo para consumir User Reports Configuration,Modulo: User Reports,1,Black and Blue\Sprint 18

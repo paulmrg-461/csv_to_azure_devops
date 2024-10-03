@@ -16,43 +16,27 @@ tasks_df = pd.read_csv(csv_file_path)
 created_tasks = []
 
 # Función para crear una tarea en Azure DevOps y asignarla a un User Story
-def create_task(title, module, description, priority, user_story_id, sprint, assigned_to, original_estimate):
+def create_task(title, description, priority, user_story_id, sprint, assigned_to, original_estimate, unit_test=False):
     headers = {
         'Content-Type': 'application/json-patch+json',
     }
 
-    # Convertir original_estimate a float, manejando tanto enteros como decimales con coma
-    try:
-        if isinstance(original_estimate, str):
-            original_estimate = original_estimate.replace(',', '.')
-        original_estimate = float(original_estimate)
-    except ValueError:
-        print(f"Advertencia: El valor de 'OriginalEstimate' para la tarea '{title}' no es un número válido. Se ignorará esta tarea.")
-        return
-
-    # Calcular tiempos para la tarea y pruebas unitarias
-    unit_testing_time = round(original_estimate * 0.3, 2)  # 30% del tiempo original
-    task_time = round(original_estimate - unit_testing_time, 2)
-
-    # Crear la descripción completa
-    full_description = (
-        f"Description: {module} - {description}.    \n\n"
-        f"Inversión de horas:\n       "
-        f"Tarea: {task_time} horas.       \n"
-        f"Unit Testing: {unit_testing_time} horas.        \n"
-        f"Total horas: {original_estimate} horas.         \n"
-    )
+    # Ajustar título y descripción si es una tarea de pruebas unitarias
+    if unit_test:
+        title = f'[Tarea][Pruebas Unitarias]: {title}'
+        description = f'{description}\n\nEsta tarea corresponde a las pruebas unitarias.'
+        original_estimate = round(original_estimate * 0.3, 2)  # 30% del tiempo de la tarea original
 
     data = [
         {
             'op': 'add',
             'path': '/fields/System.Title',
-            'value': f'[Tarea]: {title}',
+            'value': title,
         },
         {
             'op': 'add',
             'path': '/fields/System.Description',
-            'value': full_description,
+            'value': description,
         },
         {
             'op': 'add',
@@ -129,11 +113,11 @@ def create_task(title, module, description, priority, user_story_id, sprint, ass
         print(f'Error al crear la tarea "{title}". Status Code: {response.status_code}')
         print(response.json())
 
-# Crear tareas a partir del DataFrame y asignarlas a User Stories
+# Crear tareas y tareas de pruebas unitarias a partir del DataFrame y asignarlas a User Stories
 for index, row in tasks_df.iterrows():
+    # Crear la tarea principal
     create_task(
         row['Title'], 
-        row['Module'],  # Nuevo campo Module
         row['Description'], 
         row['Priority'], 
         row['UserStoryID'], 
@@ -142,11 +126,23 @@ for index, row in tasks_df.iterrows():
         row['OriginalEstimate']
     )
 
+    # Crear la tarea adicional para pruebas unitarias
+    create_task(
+        row['Title'], 
+        row['Description'], 
+        row['Priority'], 
+        row['UserStoryID'], 
+        row['Sprint'], 
+        row['AssignedTo'], 
+        row['OriginalEstimate'],
+        unit_test=True  # Indica que es una tarea de pruebas unitarias
+    )
+
 # Convertir la lista de tareas creadas a un DataFrame de pandas
 created_tasks_df = pd.DataFrame(created_tasks)
 
 # Exportar el DataFrame a un archivo Excel
-output_file = './created_tasks.xlsx'
+output_file = './created_tasks_with_unit_tests.xlsx'
 created_tasks_df.to_excel(output_file, index=False)
 
 print(f'Datos exportados a {output_file}')
