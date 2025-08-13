@@ -1,6 +1,7 @@
 import pandas as pd
 import requests
 from requests.auth import HTTPBasicAuth
+import os
 
 # Configuración
 organization = 'BlacknBlue'

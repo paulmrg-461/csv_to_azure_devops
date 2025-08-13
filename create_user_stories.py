@@ -7,7 +7,7 @@ from requests.auth import HTTPBasicAuth
 # project = 'IA_aplicada'
 organization = 'BlacknBlue'
 project = 'Black and Blue'
-pat = os.getenv('AZURE_DEVOPS_PAT') 
+pat = ''
 azure_devops_url = f'https://dev.azure.com/{organization}/{project}/_apis/wit/workitems/$User%20Story?api-version=6.0'
 
 # Leer el archivo CSV
@@ -41,6 +41,11 @@ def create_user_story(title, description, priority, sprint):
             'op': 'add',
             'path': '/fields/System.IterationPath',
             'value': sprint,
+        },
+        {
+            'op': 'add',
+            'path': '/fields/System.Tags',
+            'value': 'New User Story', 
         }
     ]
 
@@ -85,7 +90,7 @@ for index, row in user_stories_df.iterrows():
 created_user_stories_df = pd.DataFrame(created_user_stories)
 
 # Exportar el DataFrame a un archivo Excel
-output_file = './created_user_stories1.xlsx'
+output_file = './created_user_stories.xlsx'
 created_user_stories_df.to_excel(output_file, index=False)
 
 print(f'Datos exportados a {output_file}')
