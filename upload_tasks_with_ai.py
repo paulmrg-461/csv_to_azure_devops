@@ -3,28 +3,50 @@ import requests
 from requests.auth import HTTPBasicAuth
 import json
 import os
+import re
+from dotenv import load_dotenv
 
 # Configuración
-organization = 'BlacknBlue'
-project = 'Black and Blue'
-pat = os.getenv('AZURE_DEVOPS_PAT')
-azure_devops_url = f'https://dev.azure.com/{organization}/{project}/_apis/wit/workitems/$Task?api-version=6.0'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+ENV_PATH = os.path.join(BASE_DIR, '.env')
+load_dotenv(dotenv_path=ENV_PATH)
+organization = os.getenv('ORGANIZATION') or os.getenv('organization')
+project = os.getenv('PROJECT') or os.getenv('project')
+pat = os.getenv('PAT') or os.getenv('AZURE_DEVOPS_PAT') or os.getenv('pat') or os.getenv('azure_devops_pat')
+azure_devops_url = os.getenv('AZURE_DEVOPS_URL') or os.getenv('azure_devops_url') or (
+    f"https://dev.azure.com/{organization}/{project}/_apis/wit/workitems/$Task?api-version=6.0"
+    if organization and project else None
+)
+
+if not organization or not project:
+    raise ValueError("Faltan variables de entorno ORGANIZATION y PROJECT.")
+if not pat:
+    raise ValueError("Falta la variable de entorno PAT o AZURE_DEVOPS_PAT.")
+if not azure_devops_url:
+    raise ValueError("No se pudo construir AZURE_DEVOPS_URL. Define AZURE_DEVOPS_URL o ORGANIZATION y PROJECT.")
 
 # Configuración de Deepseek API
-deepseek_api_key = os.getenv('DEEPSEEK_API_KEY')
+deepseek_api_key = os.getenv('DEEPSEEK_API_KEY') or os.getenv('deepseek_api_key')
 deepseek_api_url = 'https://api.deepseek.com/v1/chat/completions'
 
-csv_file_path = './tasks.csv'
-tasks_df = pd.read_csv(
-    csv_file_path,
-    sep='\t',                   # Usa tabulaciones como separador
-    encoding='utf-8'            # Especifica UTF-8 explícitamente
+excel_file_path = os.path.join(BASE_DIR, 'tasks.xlsx')
+tasks_df = pd.read_excel(
+    excel_file_path,
+    engine='openpyxl'           # Motor para leer archivos .xlsx
 )
 # Lista para almacenar la información de las tareas creadas
 created_tasks = []
 
 # Función para generar descripción y sugerencia con IA
 def generate_ai_content(title, module, description):
+    # Si no hay API Key, evitar la llamada y devolver contenido por defecto
+    if not deepseek_api_key:
+        print("IA deshabilitada: variable DEEPSEEK_API_KEY no definida.")
+        return {
+            'description': 'La generación con IA está deshabilitada (no se encontró DEEPSEEK_API_KEY).',
+            'suggestion': 'La generación con IA está deshabilitada (no se encontró DEEPSEEK_API_KEY).'
+        }
+
     prompt = f"""
 Instrucciones Generales:
 Eres un asistente especializado en la generación de tareas técnicas para el desarrollo de software. Tu objetivo es crear tareas claras, detalladas y estructuradas para los desarrolladores del proyecto Black & Blue. A continuación, se describe el contexto del proyecto, las tecnologías utilizadas y las instrucciones específicas para la creación de tareas.
@@ -72,21 +94,52 @@ Responde en formato JSON con dos campos: "description" y "suggestion".
             result = response.json()
             content = result['choices'][0]['message']['content']
             
+            # Limpiar el contenido antes de parsear
+            content = content.strip()
+            
             # Intentar parsear el JSON de la respuesta
             try:
+                # Si el contenido está envuelto en ```json, extraerlo
+                if content.startswith('```json'):
+                    content = content.replace('```json', '').replace('```', '').strip()
+                elif content.startswith('```'):
+                    content = content.replace('```', '').strip()
+                
                 json_content = json.loads(content)
                 ai_description = json_content.get('description', '')
                 ai_suggestion = json_content.get('suggestion', '')
                 
+                print(f"✓ JSON parseado correctamente para la tarea '{title}'")
                 return {
                     'description': ai_description,
                     'suggestion': ai_suggestion
                 }
-            except json.JSONDecodeError:
+            except json.JSONDecodeError as e:
                 # Si no es JSON válido, intentar extraer manualmente
-                print(f"Error al parsear JSON para la tarea '{title}'. Usando extracción manual.")
+                print(f"⚠ Error al parsear JSON para la tarea '{title}': {str(e)}")
+                print(f"Contenido recibido: {content[:200]}...")
+                print("Usando extracción manual.")
                 
-                # Buscar descripción y sugerencia en el texto
+                # Método mejorado de extracción manual usando regex
+                 
+                 # Buscar patrones de descripción y sugerencia
+                desc_pattern = r'"description"\s*:\s*"([^"]*(?:\\.[^"]*)*)"'
+                sugg_pattern = r'"suggestion"\s*:\s*"([^"]*(?:\\.[^"]*)*)"'
+                
+                desc_match = re.search(desc_pattern, content, re.DOTALL)
+                sugg_match = re.search(sugg_pattern, content, re.DOTALL)
+                
+                if desc_match and sugg_match:
+                    ai_description = desc_match.group(1).replace('\\"', '"').replace('\\n', '\n')
+                    ai_suggestion = sugg_match.group(1).replace('\\"', '"').replace('\\n', '\n')
+                    
+                    print(f"✓ Extracción manual exitosa para la tarea '{title}'")
+                    return {
+                        'description': ai_description,
+                        'suggestion': ai_suggestion
+                    }
+                
+                # Fallback: buscar descripción y sugerencia en el texto sin regex
                 description_start = content.find('"description"')
                 suggestion_start = content.find('"suggestion"')
                 
@@ -105,11 +158,13 @@ Responde en formato JSON con dos campos: "description" y "suggestion".
                         ai_description = content[content.find(':', description_start) + 1:].strip()
                         ai_description = ai_description.strip('"').strip('}').strip()
                     
+                    print(f"✓ Extracción fallback exitosa para la tarea '{title}'")
                     return {
                         'description': ai_description,
                         'suggestion': ai_suggestion
                     }
                 
+                print(f"✗ No se pudo extraer contenido para la tarea '{title}'")
                 return {
                     'description': 'No se pudo generar una descripción con IA.',
                     'suggestion': 'No se pudo generar una sugerencia con IA.'
@@ -172,7 +227,7 @@ def create_task(title, module, description, priority, user_story_id, sprint, ass
         {
             'op': 'add',
             'path': '/fields/System.Title',
-            'value': f'[Tarea]: {title}',
+            'value': title,
         },
         {
             'op': 'add',
@@ -279,7 +334,7 @@ for index, row in tasks_df.iterrows():
 created_tasks_df = pd.DataFrame(created_tasks)
 
 # Exportar el DataFrame a un archivo Excel
-output_file = './created_tasks.xlsx'
+output_file = os.path.join(BASE_DIR, 'created_tasks.xlsx')
 created_tasks_df.to_excel(output_file, index=False)
 
 print(f'Datos exportados a {output_file}')

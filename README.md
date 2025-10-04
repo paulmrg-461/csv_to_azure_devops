@@ -1,222 +1,161 @@
 
-# Azure DevOps Automation: Creating User Stories and Tasks
+# Guía: Crear y subir actividades (Tasks) a Azure DevOps
 
-This project contains scripts to automate the creation of User Stories and Tasks in Azure DevOps from a CSV file. The scripts will also assign tasks to User Stories within specific Sprints.
+Esta guía documenta el paso a paso para instalar dependencias, preparar el archivo `tasks.xlsx` y ejecutar el script para subir actividades (Tasks) a Azure DevOps. Incluye lineamientos obligatorios y buenas prácticas para evitar errores.
 
-## Prerequisites
+## 1) Prerrequisitos
 
-- Python 3.x installed on your machine
-- Azure DevOps account and organization
-- Personal Access Token (PAT) with sufficient permissions to create and manage work items
-- CSV files containing User Stories and Tasks
+- Python 3.x instalado.
+- Organización y proyecto en Azure DevOps.
+- Personal Access Token (PAT) con permisos: Work Items (Read & Write).
+- (Opcional) API Key del proveedor de IA (para descripciones enriquecidas).
 
-## Setup
+## 2) Instalación de dependencias
 
-1. **Clone the repository** (if you are using version control):
+1. Abre la terminal en la carpeta del proyecto:
+   
+   ```bash
+   cd c:\Users\paulm\Documents\dev-projects\IAAplicada\BlackNBlue\csv_to_azure_devops
+   ```
 
-    ```bash
-    git clone https://github.com/your-repo/azure-devops-automation.git
-    cd azure-devops-automation
-    ```
+2. Instala los requisitos:
+   
+   - Entorno global:
+     ```bash
+     pip install -r requirements.txt
+     ```
+   - Entorno virtual (recomendado):
+     ```bash
+     python -m venv .venv
+     .\.venv\Scripts\activate
+     pip install -r requirements.txt
+     ```
 
-2. **Install required Python packages**:
+Dependencias usadas: `pandas`, `requests`, `openpyxl`.
 
-    ```bash
-    pip install pandas requests
-    ```
+## 3) Configurar credenciales
 
-## Generate a Personal Access Token (PAT)
+Configura en el script o mediante variables de entorno:
 
-1. Sign in to [Azure DevOps](https://dev.azure.com/).
-2. Click on your profile picture in the top right corner and select `Security`.
-3. In the `Personal Access Tokens` section, click `New Token`.
-4. Configure the token with the necessary permissions (`Work Items: Read & Write`) and click `Create`.
-5. Copy the token and keep it secure. You will not be able to view it again.
+- Organización (`organization`) y proyecto (`project`).
+- PAT para Azure DevOps.
+- (Opcional) API Key del proveedor de IA.
 
-## Creating User Stories
+El script carga el archivo `.env` ubicado en la misma carpeta del script y soporta nombres de variables en mayúsculas y minúsculas. Si no defines `AZURE_DEVOPS_URL`, se construye automáticamente con `ORGANIZATION` y `PROJECT`.
 
-1. **Prepare the CSV file**:
-    - Create a CSV file (`user_stories.csv`) with the following columns: `Title`, `Description`, `Priority`, `Sprint`.
-    - Example:
+Ejemplo de `.env` (ponerlo en la misma carpeta del script):
 
-        | Title            | Description        | Priority | Sprint                  |
-        |------------------|--------------------|----------|-------------------------|
-        | User Story 1     | Description of US1 | 1        | Project\Sprint 1        |
-        | User Story 2     | Description of US2 | 2        | Project\Sprint 1        |
-        | User Story 3     | Description of US3 | 3        | Project\Sprint 2        |
+```dotenv
+# Organización y Proyecto
+ORGANIZATION=tu-organizacion
+PROJECT=tu-proyecto
 
-2. **Run the script to create User Stories**:
+# Token de acceso personal (PAT)
+AZURE_DEVOPS_PAT=tu_pat
+# También se acepta: PAT=tu_pat
 
-    ```python
-    import pandas as pd
-    import requests
-    from requests.auth import HTTPBasicAuth
+# Endpoint para crear Tasks (opcional). Si no lo defines, se construye automáticamente.
+AZURE_DEVOPS_URL=https://dev.azure.com/tu-organizacion/tu-proyecto/_apis/wit/workitems/$Task?api-version=6.0
 
-    # Configuración
-    organization = 'your-organization'  # Replace with your organization
-    project = 'your-project'  # Replace with your project
-    pat = 'your-pat-token'  # Replace with your PAT
-    azure_devops_url = f'https://dev.azure.com/{organization}/{project}/_apis/wit/workitems/$User%20Story?api-version=6.0'
+# Clave de IA (opcional). Si no está presente, la IA se deshabilita.
+DEEPSEEK_API_KEY=tu_api_key_deepseek
+```
 
-    # Leer el archivo CSV
-    csv_file = 'user_stories.csv'
-    user_stories_df = pd.read_csv(csv_file)
+Variables soportadas en `.env` (mayúsculas/minúsculas):
+- ORGANIZATION / organization
+- PROJECT / project
+- AZURE_DEVOPS_PAT / PAT / azure_devops_pat / pat
+- AZURE_DEVOPS_URL / azure_devops_url
+- DEEPSEEK_API_KEY / deepseek_api_key
 
-    # Función para crear una User Story en Azure DevOps
-    def create_user_story(title, description, priority, sprint):
-        headers = {
-            'Content-Type': 'application/json-patch+json',
-        }
+## 4) Crear primero el User Story (Key Result)
 
-        data = [
-            {
-                'op': 'add',
-                'path': '/fields/System.Title',
-                'value': title,
-            },
-            {
-                'op': 'add',
-                'path': '/fields/System.Description',
-                'value': description,
-            },
-            {
-                'op': 'add',
-                'path': '/fields/Microsoft.VSTS.Common.Priority',
-                'value': priority,
-            },
-            {
-                'op': 'add',
-                'path': '/fields/System.IterationPath',
-                'value': sprint,
-            },
-        ]
+Antes de subir tareas, crea el User Story en Azure DevOps y obtén su ID (numérico). Ese ID se coloca en la columna `UserStoryID` de cada fila de `tasks.xlsx`.
 
-        response = requests.post(
-            azure_devops_url,
-            auth=HTTPBasicAuth('', pat),
-            headers=headers,
-            json=data
-        )
+- Puedes crearlo manualmente en Boards.
+- O con tu script de creación de User Stories.
 
-        if response.status_code == 200:
-            print(f'User Story "{title}" creada con éxito.')
-        else:
-            print(f'Error al crear la User Story "{title}". Status Code: {response.status_code}')
-            print(response.json())
+## 5) Preparar el archivo tasks.xlsx
 
-    # Crear User Stories a partir del DataFrame
-    for index, row in user_stories_df.iterrows():
-        create_user_story(row['Title'], row['Description'], row['Priority'], row['Sprint'])
-    ```
+El script lee `tasks.xlsx` y espera las siguientes columnas:
 
-## Creating Tasks and Associating them with User Stories
+- `Title`
+- `Module`
+- `Description`
+- `Priority`
+- `UserStoryID`
+- `Sprint`
+- `AssignedTo`
+- `OriginalEstimate`
 
-1. **Prepare the CSV file**:
-    - Create a CSV file (`tasks.csv`) with the following columns: `Title`, `Description`, `Priority`, `UserStoryID`, `Sprint`.
-    - Example:
+Lineamientos obligatorios:
 
-        | Title             | Description          | Priority | UserStoryID | Sprint                  |
-        |-------------------|----------------------|----------|-------------|-------------------------|
-        | Task 1            | Description of Task1 | 1        | 12345       | Project\Sprint 1        |
-        | Task 2            | Description of Task2 | 2        | 12345       | Project\Sprint 1        |
-        | Task 3            | Description of Task3 | 3        | 67890       | Project\Sprint 2        |
+- `Priority`: siempre `1`.
+- `Sprint`: exactamente con barra invertida, por ejemplo `Black and Blue\Sprint 57`.
+- `Module`: debe indicar el módulo y el frente, por ejemplo:
+  - `Playbacks Frontend`, `Playbacks Backend`
+  - `Auth Backend`
+  - `LiveViews Frontend`
+  - `LocalCoreAPI Backend`
+  - `Recording Service Backend`
+  - `Go2RTC Backend`
+  - `Code Quality Frontend/Backend`
+- `AssignedTo`: correo corporativo del responsable (todos terminan en `@blacknblue.app`). Roles típicos:
+  - `abdiel.arias@blacknblue.app` — Desarrollador Frontend Flutter (BnB Client).
+  - `victor.rodriguez@blacknblue.app` — Backend Python/Golang (CoreAPI, LocalCoreAPI, Recording Service, Go2RTC).
+  - `samir.millan@blacknblue.app` — Reconocimiento (OpenCV, YOLO, Python).
+- `OriginalEstimate`: horas totales estimadas (entero o decimal). El script calcula automáticamente 30% para Unit Testing y desglosa horas en la descripción final.
 
-2. **Run the script to create Tasks and associate them with User Stories**:
+Ejemplo de fila en `tasks.xlsx`:
 
-    ```python
-    import pandas as pd
-    import requests
-    from requests.auth import HTTPBasicAuth
+- `Title`: Reemplazar magic numbers y strings por constantes
+- `Module`: Playbacks Frontend
+- `Description`: Definir constantes estáticas para valores como z-index, spacing y borderRadius, mejorando legibilidad y mantenibilidad del código.
+- `Priority`: 1
+- `UserStoryID`: 2035
+- `Sprint`: Black and Blue\Sprint 57
+- `AssignedTo`: abdiel.arias@blacknblue.app
+- `OriginalEstimate`: 1
 
-    # Configuración
-    organization = 'your-organization'  # Replace with your organization
-    project = 'your-project'  # Replace with your project
-    pat = 'your-pat-token'  # Replace with your PAT
-    azure_devops_url = f'https://dev.azure.com/{organization}/{project}/_apis/wit/workitems/$Task?api-version=6.0'
+## 6) Ejecutar el script
 
-    # Leer el archivo CSV
-    csv_file_path = 'tasks.csv'
-    tasks_df = pd.read_csv(csv_file_path)
+Desde la carpeta del proyecto, ejecuta:
 
-    # Función para crear una tarea en Azure DevOps y asignarla a un User Story
-    def create_task(title, description, priority, user_story_id, sprint):
-        headers = {
-            'Content-Type': 'application/json-patch+json',
-        }
+```bash
+python upload_tasks_with_ai.py
+```
 
-        data = [
-            {
-                'op': 'add',
-                'path': '/fields/System.Title',
-                'value': title,
-            },
-            {
-                'op': 'add',
-                'path': '/fields/System.Description',
-                'value': description,
-            },
-            {
-                'op': 'add',
-                'path': '/fields/Microsoft.VSTS.Common.Priority',
-                'value': priority,
-            },
-            {
-                'op': 'add',
-                'path': '/fields/System.IterationPath',
-                'value': sprint,
-            }
-        ]
+Qué hace el script:
 
-        # Crear la tarea
-        response = requests.post(
-            azure_devops_url,
-            auth=HTTPBasicAuth('', pat),
-            headers=headers,
-            json=data
-        )
+- Lee `tasks.xlsx` y crea un Work Item de tipo Task por cada fila.
+- Enlaza cada Task al User Story mediante `Hierarchy-Reverse` usando `UserStoryID`.
+- Genera la descripción final incluyendo:
+  - Módulo y descripción base.
+  - Descripción y sugerencia generadas por IA (si la API responde).
+  - Detalle de horas: Tarea, Unit Testing (30%) y Total.
+- Exporta un resumen a `created_tasks.xlsx` con ID, Sprint, AssignedTo y fecha de creación.
 
-        if response.status_code == 200:
-            task_id = response.json()['id']
-            print(f'Tarea "{title}" creada con éxito con ID {task_id}.')
-            
-            # Asignar la tarea al User Story
-            link_url = f'https://dev.azure.com/{organization}/{project}/_apis/wit/workitems/{task_id}?api-version=6.0'
-            link_data = [
-                {
-                    'op': 'add',
-                    'path': '/relations/-',
-                    'value': {
-                        'rel': 'System.LinkTypes.Hierarchy-Reverse',
-                        'url': f'https://dev.azure.com/{organization}/{project}/_apis/wit/workitems/{user_story_id}'
-                    }
-                }
-            ]
-            
-            link_response = requests.patch(
-                link_url,
-                auth=HTTPBasicAuth('', pat),
-                headers=headers,
-                json=link_data
-            )
+## 7) Verificación y solución de problemas
 
-            if link_response.status_code == 200:
-                print(f'Tarea "{title}" asociada al User Story ID {user_story_id} con éxito.')
-            else:
-                print(f'Error al asociar la tarea "{title}" al User Story. Status Code: {link_response.status_code}')
-                print(link_response.json())
-        else:
-            print(f'Error al crear la tarea "{title}". Status Code: {response.status_code}')
-            print(response.json())
+- `Sprint` (IterationPath) debe existir en Azure DevOps; si no, la API fallará.
+- `AssignedTo` debe ser un usuario válido del proyecto; usa su correo corporativo.
+- Errores 401/403: revisa PAT, permisos y que `organization`/`project` coincidan.
+- Enlace al User Story: verifica que `UserStoryID` exista y sea accesible.
+- Lectura de `tasks.xlsx`: valida nombres de columnas, hoja principal y ubicación del archivo.
 
-    # Crear tareas a partir del DataFrame y asignarlas a User Stories
-    for index, row in tasks_df.iterrows():
-        create_task(row['Title'], row['Description'], row['Priority'], row['UserStoryID'], row['Sprint'])
-    ```
+## 8) Buenas prácticas al redactar tareas
 
-## License
-
-This project is licensed under the MIT License. See the LICENSE file for details.
+- `Title`: claro y conciso (ej.: "Reemplazar magic numbers por constantes en Playbacks").
+- `Module`: siempre módulo + frente (Frontend/Backend/etc.).
+- `Description`: técnica y específica del cambio.
+- `Priority`: 1.
+- `UserStoryID`: el ID del entregable creado previamente.
+- `Sprint`: `Black and Blue\Sprint 57`.
+- `AssignedTo`: correo del responsable en Azure DevOps.
+- `OriginalEstimate`: horas totales (el script calcula automáticamente el 30% para Unit Testing).
 
 ---
 
-Feel free to customize the scripts and CSV files according to your specific requirements. If you encounter any issues or have questions, please refer to the Azure DevOps REST API documentation or reach out for support.
+Con esta guía podrás preparar `tasks.xlsx` y ejecutar `upload_tasks_with_ai.py` para subir eficientemente tus tareas a Azure DevOps con descripciones enriquecidas y enlace al User Story correspondiente.
+
+##### `Paul Realpe`
