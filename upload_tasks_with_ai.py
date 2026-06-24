@@ -58,6 +58,23 @@ print(f"Archivo de entrada cargado: {input_file_path} ({len(tasks_df)} filas)")
 # Lista para almacenar la información de las tareas creadas
 created_tasks = []
 
+def _as_list(value):
+    """Normaliza un campo de la IA a lista de strings (acepta list, string con saltos, o None)."""
+    if value is None:
+        return []
+    if isinstance(value, list):
+        return [str(v).strip() for v in value if str(v).strip()]
+    if isinstance(value, str):
+        return [line.strip(' -•\t') for line in value.splitlines() if line.strip(' -•\t')]
+    return [str(value)]
+
+def _html_list(items):
+    """Convierte una lista de strings en <ul><li>...</li></ul> para Azure DevOps."""
+    if not items:
+        return "<p><i>No generado.</i></p>"
+    lis = "".join(f"<li>{item}</li>" for item in items)
+    return f"<ul>{lis}</ul>"
+
 # Función para generar descripción y sugerencia con IA
 def generate_ai_content(title, module, description):
     # Si no hay API Key, evitar la llamada y devolver contenido por defecto
@@ -137,82 +154,55 @@ Asegúrate de que el JSON sea parseable: escapa comillas internas y saltos de l�
                     content = content.replace('```json', '').replace('```', '').strip()
                 elif content.startswith('```'):
                     content = content.replace('```', '').strip()
-                
+
                 json_content = json.loads(content)
-                ai_description = json_content.get('description', '')
-                ai_suggestion = json_content.get('suggestion', '')
-                
+
                 print(f"✓ JSON parseado correctamente para la tarea '{title}'")
                 return {
-                    'description': ai_description,
-                    'suggestion': ai_suggestion
+                    'description': json_content.get('description', ''),
+                    'activities': _as_list(json_content.get('activities')),
+                    'acceptance_criteria': _as_list(json_content.get('acceptance_criteria')),
+                    'suggestion': json_content.get('suggestion', '')
                 }
             except json.JSONDecodeError as e:
-                # Si no es JSON válido, intentar extraer manualmente
+                # Si no es JSON válido, extraer description/suggestion vía regex (best-effort)
                 print(f"⚠ Error al parsear JSON para la tarea '{title}': {str(e)}")
                 print(f"Contenido recibido: {content[:200]}...")
                 print("Usando extracción manual.")
-                
-                # Método mejorado de extracción manual usando regex
-                 
-                 # Buscar patrones de descripción y sugerencia
+
                 desc_pattern = r'"description"\s*:\s*"([^"]*(?:\\.[^"]*)*)"'
                 sugg_pattern = r'"suggestion"\s*:\s*"([^"]*(?:\\.[^"]*)*)"'
-                
+
                 desc_match = re.search(desc_pattern, content, re.DOTALL)
                 sugg_match = re.search(sugg_pattern, content, re.DOTALL)
-                
-                if desc_match and sugg_match:
-                    ai_description = desc_match.group(1).replace('\\"', '"').replace('\\n', '\n')
-                    ai_suggestion = sugg_match.group(1).replace('\\"', '"').replace('\\n', '\n')
-                    
-                    print(f"✓ Extracción manual exitosa para la tarea '{title}'")
-                    return {
-                        'description': ai_description,
-                        'suggestion': ai_suggestion
-                    }
-                
-                # Fallback: buscar descripción y sugerencia en el texto sin regex
-                description_start = content.find('"description"')
-                suggestion_start = content.find('"suggestion"')
-                
-                if description_start != -1 and suggestion_start != -1:
-                    # Determinar cuál viene primero
-                    if description_start < suggestion_start:
-                        ai_description = content[content.find(':', description_start) + 1:suggestion_start].strip()
-                        ai_description = ai_description.strip('"').strip(',').strip()
-                        
-                        ai_suggestion = content[content.find(':', suggestion_start) + 1:].strip()
-                        ai_suggestion = ai_suggestion.strip('"').strip('}').strip()
-                    else:
-                        ai_suggestion = content[content.find(':', suggestion_start) + 1:description_start].strip()
-                        ai_suggestion = ai_suggestion.strip('"').strip(',').strip()
-                        
-                        ai_description = content[content.find(':', description_start) + 1:].strip()
-                        ai_description = ai_description.strip('"').strip('}').strip()
-                    
-                    print(f"✓ Extracción fallback exitosa para la tarea '{title}'")
-                    return {
-                        'description': ai_description,
-                        'suggestion': ai_suggestion
-                    }
-                
-                print(f"✗ No se pudo extraer contenido para la tarea '{title}'")
+
+                ai_description = (desc_match.group(1).replace('\\"', '"').replace('\\n', '\n')
+                                  if desc_match else 'No se pudo generar una descripción con IA.')
+                ai_suggestion = (sugg_match.group(1).replace('\\"', '"').replace('\\n', '\n')
+                                 if sugg_match else 'No se pudo generar una sugerencia con IA.')
+
+                print(f"{'✓ Extracción manual exitosa' if (desc_match or sugg_match) else '✗ No se pudo extraer contenido'} para la tarea '{title}'")
                 return {
-                    'description': 'No se pudo generar una descripción con IA.',
-                    'suggestion': 'No se pudo generar una sugerencia con IA.'
+                    'description': ai_description,
+                    'activities': [],
+                    'acceptance_criteria': [],
+                    'suggestion': ai_suggestion
                 }
         else:
             print(f"Error en la API de Deepseek para la tarea '{title}'. Status Code: {response.status_code}")
             print(response.text)
             return {
                 'description': 'No se pudo generar una descripción con IA debido a un error en la API.',
+                'activities': [],
+                'acceptance_criteria': [],
                 'suggestion': 'No se pudo generar una sugerencia con IA debido a un error en la API.'
             }
     except Exception as e:
         print(f"Excepción al llamar a la API de Deepseek para la tarea '{title}': {str(e)}")
         return {
             'description': 'No se pudo generar una descripción con IA debido a un error de conexión.',
+            'activities': [],
+            'acceptance_criteria': [],
             'suggestion': 'No se pudo generar una sugerencia con IA debido a un error de conexión.'
         }
 
@@ -245,6 +235,10 @@ def create_task(title, module, description, priority, user_story_id, sprint, ass
         f"<p>{module} - {description}</p>"
         f"<h2>AI-Generated Description</h2>"
         f"<p>{ai_content['description']}</p>"
+        f"<h2>Actividades a tener en cuenta</h2>"
+        f"{_html_list(ai_content.get('activities', []))}"
+        f"<h2>Criterios de aceptación</h2>"
+        f"{_html_list(ai_content.get('acceptance_criteria', []))}"
         f"<h2>AI Suggestion</h2>"
         f"<p>{ai_content['suggestion']}</p>"
         f"<h2>Inversión de horas</h2>"
