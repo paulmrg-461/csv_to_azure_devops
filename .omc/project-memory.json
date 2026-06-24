@@ -1,0 +1,77 @@
+{
+  "version": "1.0.0",
+  "lastScanned": 1782310514584,
+  "projectRoot": "/Users/devpaul/Documents/dev_projects/IAAplicada/BnB/csv_to_azure_devops",
+  "techStack": {
+    "languages": [
+      {
+        "name": "Python",
+        "version": null,
+        "confidence": "high",
+        "markers": [
+          "requirements.txt"
+        ]
+      }
+    ],
+    "frameworks": [],
+    "packageManager": "pip",
+    "runtime": null
+  },
+  "build": {
+    "buildCommand": null,
+    "testCommand": null,
+    "lintCommand": null,
+    "devCommand": null,
+    "scripts": {}
+  },
+  "conventions": {
+    "namingStyle": null,
+    "importStyle": null,
+    "testPattern": null,
+    "fileOrganization": null
+  },
+  "structure": {
+    "isMonorepo": false,
+    "workspaces": [],
+    "mainDirectories": [],
+    "gitBranches": {
+      "defaultBranch": "main",
+      "branchingStrategy": null
+    }
+  },
+  "customNotes": [],
+  "directoryMap": {},
+  "hotPaths": [
+    {
+      "path": "upload_tasks_with_ai.py",
+      "accessCount": 6,
+      "lastAccessed": 1782313015637,
+      "type": "file"
+    },
+    {
+      "path": ".env",
+      "accessCount": 2,
+      "lastAccessed": 1782310650017,
+      "type": "file"
+    },
+    {
+      "path": ".env.example",
+      "accessCount": 2,
+      "lastAccessed": 1782310779367,
+      "type": "file"
+    },
+    {
+      "path": "requirements.txt",
+      "accessCount": 1,
+      "lastAccessed": 1782311832850,
+      "type": "file"
+    },
+    {
+      "path": "tasks.csv",
+      "accessCount": 1,
+      "lastAccessed": 1782312341695,
+      "type": "file"
+    }
+  ],
+  "userDirectives": []
+}

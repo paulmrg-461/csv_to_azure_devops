@@ -28,12 +28,33 @@ if not azure_devops_url:
 # Configuración de Deepseek API
 deepseek_api_key = os.getenv('DEEPSEEK_API_KEY') or os.getenv('deepseek_api_key')
 deepseek_api_url = 'https://api.deepseek.com/v1/chat/completions'
+# Modelo configurable vía .env (DEEPSEEK_MODEL). Default: Deepseek V4 Flash.
+deepseek_model = os.getenv('DEEPSEEK_MODEL') or os.getenv('deepseek_model') or 'deepseek-v4-flash'
 
-excel_file_path = os.path.join(BASE_DIR, 'tasks.xlsx')
-tasks_df = pd.read_excel(
-    excel_file_path,
-    engine='openpyxl'           # Motor para leer archivos .xlsx
-)
+# Archivo de entrada: seleccionable vía .env (INPUT_FILE).
+# Soporta .csv y .xlsx; el formato se detecta por la extensión.
+input_file = os.getenv('INPUT_FILE') or os.getenv('input_file') or 'tasks.csv'
+input_file_path = input_file if os.path.isabs(input_file) else os.path.join(BASE_DIR, input_file)
+
+if not os.path.exists(input_file_path):
+    raise FileNotFoundError(f"No se encontró el archivo de entrada: {input_file_path}")
+
+ext = os.path.splitext(input_file_path)[1].lower()
+
+if ext in ('.xlsx', '.xls'):
+    tasks_df = pd.read_excel(
+        input_file_path,
+        engine='openpyxl'           # Motor para leer archivos .xlsx
+    )
+elif ext == '.csv':
+    # Separador configurable; por defecto tab (\t). Usa coma con CSV_SEPARATOR=,
+    csv_sep = os.getenv('CSV_SEPARATOR') or '\t'
+    csv_sep = csv_sep.encode().decode('unicode_escape')  # interpreta '\t' literal del .env
+    tasks_df = pd.read_csv(input_file_path, sep=csv_sep)
+else:
+    raise ValueError(f"Extensión no soportada: '{ext}'. Usa .csv o .xlsx.")
+
+print(f"Archivo de entrada cargado: {input_file_path} ({len(tasks_df)} filas)")
 # Lista para almacenar la información de las tareas creadas
 created_tasks = []
 
@@ -42,9 +63,12 @@ def generate_ai_content(title, module, description):
     # Si no hay API Key, evitar la llamada y devolver contenido por defecto
     if not deepseek_api_key:
         print("IA deshabilitada: variable DEEPSEEK_API_KEY no definida.")
+        disabled = 'La generación con IA está deshabilitada (no se encontró DEEPSEEK_API_KEY).'
         return {
-            'description': 'La generación con IA está deshabilitada (no se encontró DEEPSEEK_API_KEY).',
-            'suggestion': 'La generación con IA está deshabilitada (no se encontró DEEPSEEK_API_KEY).'
+            'description': disabled,
+            'activities': [],
+            'acceptance_criteria': [],
+            'suggestion': disabled
         }
 
     prompt = f"""
@@ -66,11 +90,19 @@ Basado en la siguiente información de tarea:
 - Módulo: {module}
 - Descripción: {description}
 
-Por favor, proporciona:
-1. Una descripción detallada y técnica de la tarea (máximo 150 palabras)
-2. Una sugerencia concreta para resolver la tarea (máximo 300 palabras)
+Genera contenido técnico de alta precisión, accionable y específico para este módulo y stack. Evita generalidades; usa nombres concretos de archivos, funciones, endpoints, tablas, librerías y patrones cuando apliquen. Responde SIEMPRE en español.
 
-Responde en formato JSON con dos campos: "description" y "suggestion".
+Devuelve EXCLUSIVAMENTE un objeto JSON válido (sin texto fuera del JSON, sin bloques de código markdown) con EXACTAMENTE estos cuatro campos:
+
+1. "description" (string): Descripción técnica detallada y precisa de la tarea (250-400 palabras). Explica el objetivo, el contexto dentro del módulo {module}, el comportamiento esperado, entradas/salidas, dependencias con otros componentes, consideraciones de seguridad/rendimiento y posibles riesgos. Sé concreto y técnico.
+
+2. "activities" (array de strings): Lista de 5 a 10 actividades/pasos concretos de implementación, en orden lógico de ejecución. Cada item es una acción específica y verificable (ej. "Crear migración Alembic con índice único en columna X", no "trabajar en la base de datos").
+
+3. "acceptance_criteria" (array de strings): Lista de 4 a 8 criterios de aceptación claros y testeables, redactados de forma binaria (cumple/no cumple). Incluye casos felices, manejo de errores y validaciones relevantes.
+
+4. "suggestion" (string): Sugerencia concreta y técnica de cómo resolver la tarea (200-350 palabras): enfoque recomendado, librerías/patrones, snippets conceptuales, orden de trabajo y buenas prácticas (Clean Code, pruebas).
+
+Asegúrate de que el JSON sea parseable: escapa comillas internas y saltos de línea correctamente.
 """
 
     headers = {
@@ -79,12 +111,13 @@ Responde en formato JSON con dos campos: "description" y "suggestion".
     }
     
     data = {
-        "model": "deepseek-chat",
+        "model": deepseek_model,
         "messages": [
             {"role": "user", "content": prompt}
         ],
-        "temperature": 0.7,
-        "max_tokens": 1000
+        "temperature": 0.4,
+        "max_tokens": 4000,
+        "response_format": {"type": "json_object"}
     }
     
     try:

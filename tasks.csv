@@ -1,0 +1,12 @@
+Title	Module	Description	Priority	UserStoryID	Sprint	AssignedTo	OriginalEstimate
+F1 - Integrar librería OIDC/PKCE	pubspec.yaml, config/environment.dart	Integrar librería OIDC/PKCE (openid_client/flutter_appauth web) + config entorno	1	3269	Black and Blue\Sprint 61	manuel.betancourt@blacknblue.app	2
+F2 - Lógica de extracción de dominio del email	presentation/ui/pages/login/	Lógica de extracción de dominio del email (debounce on-change / on-submit del campo correo)	1	3269	Black and Blue\Sprint 61	manuel.betancourt@blacknblue.app	1
+F3 - Datasource: checkSsoDomain(email)	infrastructure/datasources/authentication/	Datasource: checkSsoDomain(email) → GET /auth/sso/discovery	1	3269	Black and Blue\Sprint 61	manuel.betancourt@blacknblue.app	2
+F4 - UI condicional: dominio OKTA	login_page.dart	UI condicional: si dominio = OKTA → mostrar botón "Iniciar sesión con Okta" y ocultar campo password; si no → login tradicional	1	3269	Black and Blue\Sprint 61	manuel.betancourt@blacknblue.app	4
+F5 - Iniciar flujo Auth Code + PKCE	presentation/, datasource	Iniciar flujo Auth Code + PKCE (generar state/code_verifier/nonce, redirigir a OKTA del site)	1	3269	Black and Blue\Sprint 61	manuel.betancourt@blacknblue.app	4
+F6 - Página /auth/callback	presentation/router/, nueva página	Página /auth/callback: validar state, intercambio code→token, validar nonce; registrar ruta en router	1	3269	Black and Blue\Sprint 61	manuel.betancourt@blacknblue.app	6
+F7 - Datasource loginWithOkta	infrastructure/datasources/authentication/	Datasource loginWithOkta(idToken, siteId) → POST /users/auth/okta → AuthUserResponse	1	3269	Black and Blue\Sprint 61	manuel.betancourt@blacknblue.app	1
+F8 - Conectar al BLoC/guardado de sesión	presentation/blocs/auth_user_bloc/	Conectar al BLoC/guardado de sesión actual (reuso, sin cambios al BLoC)	1	3269	Black and Blue\Sprint 61	manuel.betancourt@blacknblue.app	2
+F9 - Manejo de errores UX	login_page.dart	Manejo de errores UX (dominio inactivo, token inválido, email no verificado, usuario rechazado)	1	3269	Black and Blue\Sprint 61	manuel.betancourt@blacknblue.app	3
+F10 - UI gestionar dominios OKTA (opcional admin)	presentation/ui/pages/	(Opcional admin) UI para gestionar dominios OKTA por site	1	3269	Black and Blue\Sprint 61	manuel.betancourt@blacknblue.app	4
+F11 - Tests widget/integración	test/	Tests widget/integración (discovery muestra botón, flujo callback)	1	3269	Black and Blue\Sprint 61	manuel.betancourt@blacknblue.app	6
