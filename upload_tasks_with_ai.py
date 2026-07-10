@@ -4,6 +4,7 @@ from requests.auth import HTTPBasicAuth
 import json
 import os
 import re
+import glob
 from dotenv import load_dotenv
 
 # Configuración
@@ -31,30 +32,54 @@ deepseek_api_url = 'https://api.deepseek.com/v1/chat/completions'
 # Modelo configurable vía .env (DEEPSEEK_MODEL). Default: Deepseek V4 Flash.
 deepseek_model = os.getenv('DEEPSEEK_MODEL') or os.getenv('deepseek_model') or 'deepseek-v4-flash'
 
-# Archivo de entrada: seleccionable vía .env (INPUT_FILE).
+# Modo de prueba: genera contenido IA y arma la descripción completa, pero NO llama a
+# Azure DevOps (ni POST de tarea ni PATCH de link). Útil pa revisar calidad del contenido
+# antes de crear work items reales. Default: dry-run (hay que optar explícitamente por
+# DRY_RUN=false pa escribir en Azure DevOps).
+DRY_RUN = (os.getenv('DRY_RUN') or 'true').strip().lower() not in ('0', 'false', 'no')
+
+# Archivo(s) de entrada: seleccionable vía .env (INPUT_FILE).
 # Soporta .csv y .xlsx; el formato se detecta por la extensión.
-input_file = os.getenv('INPUT_FILE') or os.getenv('input_file') or 'tasks.csv'
-input_file_path = input_file if os.path.isabs(input_file) else os.path.join(BASE_DIR, input_file)
+# Acepta una lista separada por comas y/o patrones glob, p.ej.:
+#   INPUT_FILE=../docs/backlog/saas-licencias/tasks-epic-*.csv
+#   INPUT_FILE=tasks-epic-00.csv,tasks-epic-01.csv
+input_file_spec = os.getenv('INPUT_FILE') or os.getenv('input_file') or 'tasks.csv'
 
-if not os.path.exists(input_file_path):
-    raise FileNotFoundError(f"No se encontró el archivo de entrada: {input_file_path}")
+def _resolve_paths(spec):
+    paths = []
+    for chunk in spec.split(','):
+        chunk = chunk.strip()
+        if not chunk:
+            continue
+        chunk_path = chunk if os.path.isabs(chunk) else os.path.join(BASE_DIR, chunk)
+        matches = sorted(glob.glob(chunk_path)) if any(c in chunk for c in '*?[') else [chunk_path]
+        paths.extend(matches)
+    return paths
 
-ext = os.path.splitext(input_file_path)[1].lower()
+def _read_one(path):
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"No se encontró el archivo de entrada: {path}")
+    ext = os.path.splitext(path)[1].lower()
+    if ext in ('.xlsx', '.xls'):
+        df = pd.read_excel(path, engine='openpyxl')
+    elif ext == '.csv':
+        csv_sep = os.getenv('CSV_SEPARATOR') or '\t'
+        csv_sep = csv_sep.encode().decode('unicode_escape')  # interpreta '\t' literal del .env
+        df = pd.read_csv(path, sep=csv_sep)
+    else:
+        raise ValueError(f"Extensión no soportada: '{ext}'. Usa .csv o .xlsx.")
+    df['SourceFile'] = os.path.basename(path)
+    return df
 
-if ext in ('.xlsx', '.xls'):
-    tasks_df = pd.read_excel(
-        input_file_path,
-        engine='openpyxl'           # Motor para leer archivos .xlsx
-    )
-elif ext == '.csv':
-    # Separador configurable; por defecto tab (\t). Usa coma con CSV_SEPARATOR=,
-    csv_sep = os.getenv('CSV_SEPARATOR') or '\t'
-    csv_sep = csv_sep.encode().decode('unicode_escape')  # interpreta '\t' literal del .env
-    tasks_df = pd.read_csv(input_file_path, sep=csv_sep)
-else:
-    raise ValueError(f"Extensión no soportada: '{ext}'. Usa .csv o .xlsx.")
+input_paths = _resolve_paths(input_file_spec)
+if not input_paths:
+    raise FileNotFoundError(f"INPUT_FILE no resolvió a ningún archivo: {input_file_spec}")
 
-print(f"Archivo de entrada cargado: {input_file_path} ({len(tasks_df)} filas)")
+tasks_df = pd.concat([_read_one(p) for p in input_paths], ignore_index=True)
+
+print(f"Modo: {'DRY-RUN (no escribe en Azure DevOps)' if DRY_RUN else 'LIVE (crea work items reales)'}")
+print(f"Archivos de entrada: {len(input_paths)} -> {[os.path.basename(p) for p in input_paths]}")
+print(f"Total de filas cargadas: {len(tasks_df)}")
 # Lista para almacenar la información de las tareas creadas
 created_tasks = []
 
@@ -284,9 +309,25 @@ def create_task(title, module, description, priority, user_story_id, sprint, ass
         {
             'op': 'add',
             'path': '/fields/System.Tags',
-            'value': 'New task', 
+            'value': 'New task',
         }
     ]
+
+    if DRY_RUN:
+        print(f'[DRY-RUN] Tarea "{title}" NO creada (Azure DevOps no fue llamado).')
+        created_tasks.append({
+            'Task ID': None,
+            'Task Title': title,
+            'Module': module,
+            'Description': description,
+            'Full Description (HTML)': full_description,
+            'Estimate': original_estimate,
+            'User Story ID': user_story_id,
+            'Sprint': sprint,
+            'Assigned To': assigned_to,
+            'Created Date': None,
+        })
+        return
 
     # Crear la tarea
     response = requests.post(
@@ -315,7 +356,13 @@ def create_task(title, module, description, priority, user_story_id, sprint, ass
             'Created Date': created_date
         })
         
-        # Asignar la tarea al User Story
+        # Asignar la tarea al User Story (requiere el ID numérico real del work item;
+        # placeholders tipo "US-EPIC0" se saltan con warning en vez de fallar la llamada)
+        if not str(user_story_id).strip().isdigit():
+            print(f'⚠ "{title}" no se linkeó: UserStoryID "{user_story_id}" no es un ID numérico real '
+                  f'(reemplazá el placeholder US-EPICx antes de correr en LIVE).')
+            return
+
         link_url = f'https://dev.azure.com/{organization}/{project}/_apis/wit/workitems/{task_id}?api-version=6.0'
         link_data = [
             {
