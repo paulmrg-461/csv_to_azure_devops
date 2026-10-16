@@ -1,1 +1,25 @@
+# ===== Secretos =====
 .env
+
+# ===== Entornos virtuales =====
+venv/
+.venv/
+env/
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+
+# ===== Salidas generadas por los scripts =====
+created_tasks.xlsx
+created_user_stories.xlsx
+azure_devops_work_items.xlsx
+
+# ===== Sistema operativo, editores y herramientas =====
+.DS_Store
+.marscode/
+.obsidian/
+.omc/
