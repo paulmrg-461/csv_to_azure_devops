@@ -2,15 +2,19 @@ import os
 import requests
 import pandas as pd
 from requests.auth import HTTPBasicAuth
+from dotenv import load_dotenv
 
 # --- CONFIGURACIÓN ---
-# ¡IMPORTANTE! Se recomienda usar variables de entorno para el PAT por seguridad.
-# El script intentará leer la variable 'AZURE_DEVOPS_PAT'.
-# Si no la encuentra, usará el valor de fallback (NO RECOMENDADO para producción).
-# PAT = os.getenv('AZURE_DEVOPS_PAT', 'TU_PAT_DE_FALLBACK_AQUI') 
-PAT = ''
-ORGANIZATION = 'BlacknBlue'
-PROJECT = 'Black and Blue'
+# Carga ORGANIZATION / PROJECT / PAT desde el .env de esta misma carpeta,
+# igual que upload_tasks_with_ai.py.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(dotenv_path=os.path.join(BASE_DIR, '.env'))
+PAT = os.getenv('PAT') or os.getenv('AZURE_DEVOPS_PAT') or ''
+ORGANIZATION = os.getenv('ORGANIZATION') or 'BlacknBlue'
+PROJECT = os.getenv('PROJECT') or 'Black and Blue'
+
+if not PAT:
+    raise ValueError("Falta la variable de entorno PAT o AZURE_DEVOPS_PAT en .env.")
 
 # Define los tipos de Work Items que quieres extraer
 WORK_ITEM_TYPES = ['Task', 'Bug', 'Issue']

@@ -5,6 +5,7 @@ import json
 import os
 import re
 import glob
+import time
 from dotenv import load_dotenv
 
 # Configuración
@@ -101,7 +102,78 @@ def _html_list(items):
     return f"<ul>{lis}</ul>"
 
 # Función para generar descripción y sugerencia con IA
-def generate_ai_content(title, module, description):
+def _strip_code_fences(content):
+    content = content.strip()
+    if content.startswith('```'):
+        content = re.sub(r'^```(?:json)?\s*', '', content)
+        content = re.sub(r'```\s*$', '', content).strip()
+    return content
+
+def _extract_braces(content):
+    """Si el modelo agregó texto antes/después del JSON, recorta desde la primera '{' hasta la última '}'."""
+    start = content.find('{')
+    end = content.rfind('}')
+    if start != -1 and end != -1 and end > start:
+        return content[start:end + 1]
+    return content
+
+def _sanitize_json_like(text):
+    """Escapa backslashes sueltos que no forman una secuencia de escape JSON válida
+    (ej. rutas de archivo tipo core-api\\app\\main.py que el modelo no escapó bien)."""
+    return re.sub(r'\\(?!["\\/bfnrtu])', r'\\\\', text)
+
+def _try_parse_json(raw_content):
+    """Intenta parsear el contenido como JSON, con dos pasadas de saneo progresivo.
+    Devuelve (dict_o_None, contenido_normalizado_usado_para_el_intento)."""
+    content = _strip_code_fences(raw_content)
+    content = _extract_braces(content)
+    if not content:
+        return None, content
+    try:
+        return json.loads(content), content
+    except json.JSONDecodeError:
+        pass
+    try:
+        return json.loads(_sanitize_json_like(content)), content
+    except json.JSONDecodeError:
+        return None, content
+
+def _regex_fallback_extract(content):
+    """Extracción best-effort cuando el JSON no es parseable ni saneable.
+    En vez de buscar la comilla de cierre (frágil si el texto trae comillas internas sin
+    escapar), corta en el límite conocido: el nombre del siguiente campo del schema."""
+    def field(name, next_name):
+        if next_name:
+            pattern = rf'"{name}"\s*:\s*"(.*?)"\s*,\s*"{next_name}"'
+        else:
+            pattern = rf'"{name}"\s*:\s*"(.*?)"\s*\}}\s*$'
+        m = re.search(pattern, content, re.DOTALL)
+        return m.group(1).strip() if m else None
+
+    def array_field(name, next_name):
+        pattern = rf'"{name}"\s*:\s*\[(.*?)\]\s*,\s*"{next_name}"'
+        m = re.search(pattern, content, re.DOTALL)
+        if not m:
+            return []
+        items = re.findall(r'"((?:[^"\\]|\\.)*)"', m.group(1), re.DOTALL)
+        return [i.replace('\\"', '"').replace('\\n', '\n').strip() for i in items if i.strip()]
+
+    desc = field('description', 'activities')
+    activities = array_field('activities', 'acceptance_criteria')
+    criteria = array_field('acceptance_criteria', 'suggestion')
+    sugg = field('suggestion', None)
+
+    def clean(s):
+        return s.replace('\\"', '"').replace('\\n', '\n').strip() if s else s
+
+    return {
+        'description': clean(desc) or 'No se pudo generar una descripción con IA.',
+        'activities': activities,
+        'acceptance_criteria': criteria,
+        'suggestion': clean(sugg) or 'No se pudo generar una sugerencia con IA.',
+    }
+
+def generate_ai_content(title, module, description, max_retries=4):
     # Si no hay API Key, evitar la llamada y devolver contenido por defecto
     if not deepseek_api_key:
         print("IA deshabilitada: variable DEEPSEEK_API_KEY no definida.")
@@ -136,100 +208,87 @@ Genera contenido técnico de alta precisión, accionable y específico para este
 
 Devuelve EXCLUSIVAMENTE un objeto JSON válido (sin texto fuera del JSON, sin bloques de código markdown) con EXACTAMENTE estos cuatro campos:
 
-1. "description" (string): Descripción técnica detallada y precisa de la tarea (250-400 palabras). Explica el objetivo, el contexto dentro del módulo {module}, el comportamiento esperado, entradas/salidas, dependencias con otros componentes, consideraciones de seguridad/rendimiento y posibles riesgos. Sé concreto y técnico.
+1. "description" (string): Descripción técnica detallada y precisa de la tarea (400-600 palabras). Explica el objetivo, el contexto dentro del módulo {module}, el comportamiento esperado, entradas/salidas, dependencias con otros componentes, consideraciones de seguridad/rendimiento y posibles riesgos. Sé concreto y técnico.
 
-2. "activities" (array de strings): Lista de 5 a 10 actividades/pasos concretos de implementación, en orden lógico de ejecución. Cada item es una acción específica y verificable (ej. "Crear migración Alembic con índice único en columna X", no "trabajar en la base de datos").
+2. "activities" (array de strings): Lista de 6 a 12 actividades/pasos concretos de implementación, en orden lógico de ejecución. Cada item es una acción específica y verificable (ej. "Crear migración Alembic con índice único en columna X", no "trabajar en la base de datos").
 
-3. "acceptance_criteria" (array de strings): Lista de 4 a 8 criterios de aceptación claros y testeables, redactados de forma binaria (cumple/no cumple). Incluye casos felices, manejo de errores y validaciones relevantes.
+3. "acceptance_criteria" (array de strings): Lista de 5 a 10 criterios de aceptación claros y testeables, redactados de forma binaria (cumple/no cumple). Incluye casos felices, manejo de errores y validaciones relevantes.
 
-4. "suggestion" (string): Sugerencia concreta y técnica de cómo resolver la tarea (200-350 palabras): enfoque recomendado, librerías/patrones, snippets conceptuales, orden de trabajo y buenas prácticas (Clean Code, pruebas).
+4. "suggestion" (string): Sugerencia concreta y técnica de cómo resolver la tarea (300-450 palabras): enfoque recomendado, librerías/patrones, snippets conceptuales, orden de trabajo y buenas prácticas (Clean Code, pruebas).
 
-Asegúrate de que el JSON sea parseable: escapa comillas internas y saltos de línea correctamente.
+Asegúrate de que el JSON sea parseable: escapa comillas internas y saltos de línea correctamente. NUNCA uses backslash literal fuera de una secuencia de escape JSON válida — si necesitas mencionar una ruta de archivo, usa siempre '/' (ej. "core-api/app/main.py"), nunca '\\'. No incluyas bloques de código con backticks dentro de los strings.
 """
 
     headers = {
         'Content-Type': 'application/json',
         'Authorization': f'Bearer {deepseek_api_key}'
     }
-    
+
     data = {
         "model": deepseek_model,
         "messages": [
             {"role": "user", "content": prompt}
         ],
         "temperature": 0.4,
-        "max_tokens": 4000,
+        "max_tokens": 6500,
         "response_format": {"type": "json_object"}
     }
-    
-    try:
-        response = requests.post(deepseek_api_url, headers=headers, json=data)
-        
-        if response.status_code == 200:
-            result = response.json()
-            content = result['choices'][0]['message']['content']
-            
-            # Limpiar el contenido antes de parsear
-            content = content.strip()
-            
-            # Intentar parsear el JSON de la respuesta
-            try:
-                # Si el contenido está envuelto en ```json, extraerlo
-                if content.startswith('```json'):
-                    content = content.replace('```json', '').replace('```', '').strip()
-                elif content.startswith('```'):
-                    content = content.replace('```', '').strip()
 
-                json_content = json.loads(content)
+    last_content = ''
+    for attempt in range(1, max_retries + 1):
+        try:
+            response = requests.post(deepseek_api_url, headers=headers, json=data, timeout=60)
+        except requests.exceptions.RequestException as e:
+            print(f"Intento {attempt}/{max_retries}: excepción de red llamando a Deepseek para '{title}': {e}")
+            time.sleep(2 * attempt)
+            continue
 
+        if response.status_code == 429:
+            print(f"Intento {attempt}/{max_retries}: rate-limited (429) para '{title}', esperando antes de reintentar.")
+            time.sleep(5 * attempt)
+            continue
+
+        if response.status_code != 200:
+            print(f"Intento {attempt}/{max_retries}: error API ({response.status_code}) para '{title}'.")
+            print(response.text[:300])
+            time.sleep(2 * attempt)
+            continue
+
+        try:
+            content = response.json()['choices'][0]['message']['content']
+        except (KeyError, IndexError, ValueError) as e:
+            print(f"Intento {attempt}/{max_retries}: respuesta sin contenido utilizable para '{title}': {e}")
+            time.sleep(2 * attempt)
+            continue
+
+        last_content = content or ''
+        json_content, _ = _try_parse_json(last_content)
+
+        if json_content is not None:
+            if attempt > 1:
+                print(f"✓ JSON parseado en el intento {attempt}/{max_retries} para la tarea '{title}'")
+            else:
                 print(f"✓ JSON parseado correctamente para la tarea '{title}'")
-                return {
-                    'description': json_content.get('description', ''),
-                    'activities': _as_list(json_content.get('activities')),
-                    'acceptance_criteria': _as_list(json_content.get('acceptance_criteria')),
-                    'suggestion': json_content.get('suggestion', '')
-                }
-            except json.JSONDecodeError as e:
-                # Si no es JSON válido, extraer description/suggestion vía regex (best-effort)
-                print(f"⚠ Error al parsear JSON para la tarea '{title}': {str(e)}")
-                print(f"Contenido recibido: {content[:200]}...")
-                print("Usando extracción manual.")
-
-                desc_pattern = r'"description"\s*:\s*"([^"]*(?:\\.[^"]*)*)"'
-                sugg_pattern = r'"suggestion"\s*:\s*"([^"]*(?:\\.[^"]*)*)"'
-
-                desc_match = re.search(desc_pattern, content, re.DOTALL)
-                sugg_match = re.search(sugg_pattern, content, re.DOTALL)
-
-                ai_description = (desc_match.group(1).replace('\\"', '"').replace('\\n', '\n')
-                                  if desc_match else 'No se pudo generar una descripción con IA.')
-                ai_suggestion = (sugg_match.group(1).replace('\\"', '"').replace('\\n', '\n')
-                                 if sugg_match else 'No se pudo generar una sugerencia con IA.')
-
-                print(f"{'✓ Extracción manual exitosa' if (desc_match or sugg_match) else '✗ No se pudo extraer contenido'} para la tarea '{title}'")
-                return {
-                    'description': ai_description,
-                    'activities': [],
-                    'acceptance_criteria': [],
-                    'suggestion': ai_suggestion
-                }
-        else:
-            print(f"Error en la API de Deepseek para la tarea '{title}'. Status Code: {response.status_code}")
-            print(response.text)
             return {
-                'description': 'No se pudo generar una descripción con IA debido a un error en la API.',
-                'activities': [],
-                'acceptance_criteria': [],
-                'suggestion': 'No se pudo generar una sugerencia con IA debido a un error en la API.'
+                'description': json_content.get('description', ''),
+                'activities': _as_list(json_content.get('activities')),
+                'acceptance_criteria': _as_list(json_content.get('acceptance_criteria')),
+                'suggestion': json_content.get('suggestion', '')
             }
-    except Exception as e:
-        print(f"Excepción al llamar a la API de Deepseek para la tarea '{title}': {str(e)}")
-        return {
-            'description': 'No se pudo generar una descripción con IA debido a un error de conexión.',
-            'activities': [],
-            'acceptance_criteria': [],
-            'suggestion': 'No se pudo generar una sugerencia con IA debido a un error de conexión.'
-        }
+
+        print(f"⚠ Intento {attempt}/{max_retries}: JSON inválido/no saneable para la tarea '{title}'.")
+        if attempt < max_retries:
+            time.sleep(1.5)
+
+    # Se agotaron los reintentos: extracción manual best-effort sobre el último contenido recibido.
+    print(f"Usando extracción manual para la tarea '{title}' tras {max_retries} intentos fallidos.")
+    print(f"Último contenido recibido: {last_content[:200]}...")
+    fallback = _regex_fallback_extract(_extract_braces(_strip_code_fences(last_content)))
+    recovered = (fallback['description'] != 'No se pudo generar una descripción con IA.'
+                 or fallback['suggestion'] != 'No se pudo generar una sugerencia con IA.'
+                 or fallback['activities'] or fallback['acceptance_criteria'])
+    print(f"{'✓ Extracción manual exitosa (parcial)' if recovered else '✗ No se pudo extraer contenido'} para la tarea '{title}'")
+    return fallback
 
 # Función para crear una tarea en Azure DevOps y asignarla a un User Story
 def create_task(title, module, description, priority, user_story_id, sprint, assigned_to, original_estimate):

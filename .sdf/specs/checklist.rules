@@ -1,0 +1,136 @@
+# checklist.rules — INTERPRETE_VERSION: 1
+# Única lógica de la Capa 1 (mecánica) del cierre. checklist.sh y checklist.ps1 son
+# lanzadores delgados que leen ESTE archivo — nunca dupliques un check en el código
+# de un lanzador sin agregarlo aquí también. Un registro por check, separado por
+# '---'. `{id}` se sustituye por el id de documento que se está verificando.
+#
+# Tipos de check (los ocho que implementan ambos lanzadores):
+#   archivo_existe        ruta exacta es un archivo
+#   carpeta_existe        ruta exacta es una carpeta
+#   glob_existe           al menos un archivo/carpeta coincide con el patrón de ruta
+#   grep_existe           el archivo (o el "archivo del último cambio" si se da carpeta_base)
+#                         contiene el patrón
+#   grep_ausente          ningún archivo bajo ruta (excepto los de `excluir`) contiene el patrón
+#   conteo_lineas_max      el archivo tiene <= max líneas
+#   contiene_fecha_hoy     el archivo contiene la fecha de hoy (AAAA-MM-DD)
+#   sin_subcarpetas        la ruta (carpeta) no contiene subcarpetas
+#   grep_todas_cumplen     toda línea que matchea `patron` bajo ruta también matchea `patron_b`
+#   presupuesto_no_excedido caso especial: compara Tokens: contra Presupuesto: del último proposal
+#
+# "último cambio" = la carpeta más reciente (orden alfabético = orden de fecha,
+# por el prefijo AAAA-MM-DD-) bajo `.sdf/docs/{id}/changes/`.
+---
+id: doc-presente
+tipo: glob_existe
+ruta: docs/{id}.*
+descripcion: documento docs/{id}.* presente (plano)
+---
+id: carpeta-espejo
+tipo: carpeta_existe
+ruta: .sdf/docs/{id}
+descripcion: carpeta espejo .sdf/docs/{id} existe
+---
+id: spec-presente
+tipo: archivo_existe
+ruta: .sdf/docs/{id}/spec.md
+descripcion: spec.md presente
+---
+id: hay-cambio
+tipo: glob_existe
+ruta: .sdf/docs/{id}/changes/*/
+descripcion: al menos un cambio en changes/
+---
+id: proposal-existe
+tipo: archivo_existe
+ruta: .sdf/docs/{id}/changes/{ultimo}/proposal.md
+descripcion: proposal del cambio más reciente existe
+---
+id: proposal-estado
+tipo: grep_existe
+ruta: .sdf/docs/{id}/changes/{ultimo}/proposal.md
+patron: Estado:
+descripcion: proposal tiene campo Estado
+---
+id: proposal-evaluacion
+tipo: grep_existe
+ruta: .sdf/docs/{id}/changes/{ultimo}/proposal.md
+patron: Evaluaci
+sin_distincion_mayusculas: true
+descripcion: proposal tiene campo Evaluación
+---
+id: proposal-modulos
+tipo: grep_existe
+ruta: .sdf/docs/{id}/changes/{ultimo}/proposal.md
+patron: Módulos:
+descripcion: proposal tiene campo Módulos (bloque 3)
+---
+id: proposal-presupuesto
+tipo: grep_existe
+ruta: .sdf/docs/{id}/changes/{ultimo}/proposal.md
+patron: Presupuesto:
+descripcion: proposal tiene campo Presupuesto (bloque 3)
+---
+id: presupuesto-respetado
+tipo: presupuesto_no_excedido
+ruta: .sdf/docs/{id}/changes/{ultimo}/proposal.md
+descripcion: el cierre no excedió su Presupuesto declarado
+---
+id: tasks-existe
+tipo: archivo_existe
+ruta: .sdf/docs/{id}/changes/{ultimo}/tasks.md
+descripcion: tasks.md del cambio existe
+---
+id: docs-sin-subcarpetas
+tipo: sin_subcarpetas
+ruta: docs
+descripcion: sin subcarpetas de documento en docs/
+---
+id: pagina-wiki
+tipo: archivo_existe
+ruta: wiki/entregables-metas/{id}.md
+descripcion: página del entregable en la wiki
+---
+id: en-tabla-project
+tipo: grep_existe
+ruta: .sdf/project.md
+patron: {id}
+descripcion: documento en tabla de .sdf/project.md
+---
+id: memory-existe
+tipo: archivo_existe
+ruta: .sdf/MEMORY.md
+descripcion: MEMORY.md existe (.sdf/)
+---
+id: memory-tope
+tipo: conteo_lineas_max
+ruta: .sdf/MEMORY.md
+max: 80
+descripcion: MEMORY.md dentro del tope (<=80 líneas)
+---
+id: index-fecha-hoy
+tipo: contiene_fecha_hoy
+ruta: wiki/INDEX.md
+descripcion: INDEX de la wiki con fecha de hoy
+---
+id: hechos-con-fuente
+tipo: grep_todas_cumplen
+ruta: wiki
+patron: · desde
+patron_b: ](
+excluir: README.md,CLAUDE.md,GEMINI.md
+descripcion: todo hecho sellado lleva enlace a fuente
+---
+id: hechos-sin-relaciones-genericas
+tipo: grep_ausente
+ruta: wiki
+patron: relacionado con|asociado a
+sin_distincion_mayusculas: true
+excluir: README.md,CLAUDE.md,GEMINI.md
+descripcion: sin relaciones genéricas en las páginas
+---
+id: sin-wikilinks-viejos
+tipo: grep_ausente
+ruta: wiki
+patron: \[\[
+excluir: README.md,CLAUDE.md,GEMINI.md
+descripcion: sin wikilinks de la convención vieja
