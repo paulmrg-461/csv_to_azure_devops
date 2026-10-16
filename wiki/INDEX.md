@@ -1,7 +1,7 @@
 # Wiki del proyecto: csv_to_azure_devops
 
 > Portada de la wiki. Mantenida por la IA (ver "Wiki del proyecto" en `AGENTS.md`).
-> Última actualización: 2026-10-05
+> Última actualización: 2026-10-16
 > Última sincronización correo/calendario: — (aún no sincronizada)
 
 Scripts Python que suben Tasks a Azure DevOps con descripciones generadas por IA y extraen Work Items a Excel. El único documento gobernado es la guía de carga.
@@ -18,6 +18,7 @@ Scripts Python que suben Tasks a Azure DevOps con descripciones generadas por IA
 |--------|---------|
 | [BlacknBlue](empresas/blacknblue.md) | Organización de Azure DevOps y dominio de correo |
 | [DeepSeek](empresas/deepseek.md) | Proveedor de IA opcional |
+| [Groq](empresas/groq.md) | Proveedor de IA alternativo (activo en el `.env` local) |
 
 ## Bienes / Recursos
 

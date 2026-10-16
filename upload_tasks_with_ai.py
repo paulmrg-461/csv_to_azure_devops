@@ -27,11 +27,40 @@ if not pat:
 if not azure_devops_url:
     raise ValueError("No se pudo construir AZURE_DEVOPS_URL. Define AZURE_DEVOPS_URL o ORGANIZATION y PROJECT.")
 
-# Configuración de Deepseek API
-deepseek_api_key = os.getenv('DEEPSEEK_API_KEY') or os.getenv('deepseek_api_key')
-deepseek_api_url = 'https://api.deepseek.com/v1/chat/completions'
-# Modelo configurable vía .env (DEEPSEEK_MODEL). Default: Deepseek V4 Flash.
-deepseek_model = os.getenv('DEEPSEEK_MODEL') or os.getenv('deepseek_model') or 'deepseek-v4-flash'
+# ===== Proveedor de IA (contrato OpenAI-compatible: /chat/completions) =====
+# Seleccionable con AI_PROVIDER en el .env: 'deepseek' (default) o 'groq'.
+# Ambos exponen el mismo contrato, así que solo cambian URL, variable de la API key
+# y modelo por defecto. Se puede forzar con AI_API_URL / AI_MODEL si hace falta.
+AI_PROVIDERS = {
+    'deepseek': {
+        'api_url': 'https://api.deepseek.com/v1/chat/completions',
+        'api_key_envs': ('DEEPSEEK_API_KEY', 'deepseek_api_key'),
+        'model_envs': ('DEEPSEEK_MODEL', 'deepseek_model'),
+        'default_model': 'deepseek-v4-flash',
+    },
+    'groq': {
+        'api_url': 'https://api.groq.com/openai/v1/chat/completions',
+        'api_key_envs': ('GROQ_API_KEY', 'groq_api_key'),
+        'model_envs': ('GROQ_MODEL', 'groq_model'),
+        'default_model': 'openai/gpt-oss-120b',
+    },
+}
+
+ai_provider = (os.getenv('AI_PROVIDER') or os.getenv('ai_provider') or 'deepseek').strip().lower()
+if ai_provider not in AI_PROVIDERS:
+    raise ValueError(
+        f"AI_PROVIDER '{ai_provider}' no reconocido. Usa uno de: {', '.join(sorted(AI_PROVIDERS))}."
+    )
+
+_provider = AI_PROVIDERS[ai_provider]
+
+ai_api_url = os.getenv('AI_API_URL') or os.getenv('ai_api_url') or _provider['api_url']
+ai_api_key = next((os.getenv(e) for e in _provider['api_key_envs'] if os.getenv(e)), None)
+ai_model = (
+    os.getenv('AI_MODEL') or os.getenv('ai_model')
+    or next((os.getenv(e) for e in _provider['model_envs'] if os.getenv(e)), None)
+    or _provider['default_model']
+)
 
 # Modo de prueba: genera contenido IA y arma la descripción completa, pero NO llama a
 # Azure DevOps (ni POST de tarea ni PATCH de link). Útil pa revisar calidad del contenido
@@ -79,6 +108,8 @@ if not input_paths:
 tasks_df = pd.concat([_read_one(p) for p in input_paths], ignore_index=True)
 
 print(f"Modo: {'DRY-RUN (no escribe en Azure DevOps)' if DRY_RUN else 'LIVE (crea work items reales)'}")
+print(f"Proveedor IA: {ai_provider} (modelo: {ai_model})" if ai_api_key
+      else f"Proveedor IA: deshabilitado (sin API key para '{ai_provider}')")
 print(f"Archivos de entrada: {len(input_paths)} -> {[os.path.basename(p) for p in input_paths]}")
 print(f"Total de filas cargadas: {len(tasks_df)}")
 # Lista para almacenar la información de las tareas creadas
@@ -175,9 +206,9 @@ def _regex_fallback_extract(content):
 
 def generate_ai_content(title, module, description, max_retries=4):
     # Si no hay API Key, evitar la llamada y devolver contenido por defecto
-    if not deepseek_api_key:
-        print("IA deshabilitada: variable DEEPSEEK_API_KEY no definida.")
-        disabled = 'La generación con IA está deshabilitada (no se encontró DEEPSEEK_API_KEY).'
+    if not ai_api_key:
+        print(f"IA deshabilitada: no hay API key configurada para el proveedor '{ai_provider}'.")
+        disabled = f"La generación con IA está deshabilitada (no se encontró la API key de '{ai_provider}')."
         return {
             'description': disabled,
             'activities': [],
@@ -221,11 +252,11 @@ Asegúrate de que el JSON sea parseable: escapa comillas internas y saltos de l�
 
     headers = {
         'Content-Type': 'application/json',
-        'Authorization': f'Bearer {deepseek_api_key}'
+        'Authorization': f'Bearer {ai_api_key}'
     }
 
     data = {
-        "model": deepseek_model,
+        "model": ai_model,
         "messages": [
             {"role": "user", "content": prompt}
         ],
@@ -237,9 +268,9 @@ Asegúrate de que el JSON sea parseable: escapa comillas internas y saltos de l�
     last_content = ''
     for attempt in range(1, max_retries + 1):
         try:
-            response = requests.post(deepseek_api_url, headers=headers, json=data, timeout=60)
+            response = requests.post(ai_api_url, headers=headers, json=data, timeout=60)
         except requests.exceptions.RequestException as e:
-            print(f"Intento {attempt}/{max_retries}: excepción de red llamando a Deepseek para '{title}': {e}")
+            print(f"Intento {attempt}/{max_retries}: excepción de red llamando a {ai_provider} para '{title}': {e}")
             time.sleep(2 * attempt)
             continue
 
